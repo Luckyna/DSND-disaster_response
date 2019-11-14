@@ -2,39 +2,64 @@ import sys
 import pandas as pd
 from sqlalchemy import create_engine
 
+_data_connection_prefix = 'sqlite:///'
+
 
 def load_data(messages_filepath, categories_filepath):
-  messages = pd.read_csv(messages_filepath)
-  categories = pd.read_csv(categories_filepath)
-  df = messages.merge(categories)
+    '''
+    INPUT:
+    messages_filepath - filepath to the csv file containing messages data
+    categories_filepath - filepath to the csv file containing categories data
+
+    OUTPUT:
+    df - pandas DataFrame with merged data
+    '''
+    
+    messages = pd.read_csv(messages_filepath)
+    categories = pd.read_csv(categories_filepath)
+    df = messages.merge(categories)
+    return df
+
 
 def clean_data(df):
-  categories = df['categories'].str.split( ';',expand=True)
-  row = categories.iloc[0]
+    '''
+    INPUT:
+    df - pandas DataFrame containg messages and categories for cleaning
 
-  # use this row to extract a list of new column names for categories.
-  category_colnames = [x[:-2:] for x in row]
-  categories.columns = category_colnames
-  for column in categories:
-    # set each value to be the last character of the string
-    categories[column] = [x[-1::] for x in categories[column]]
+    OUTPUT:
+    df - pandas DataFrame with cleaned data
+    '''
     
-    # convert column from string to numeric
-    categories[column] = categories[column].astype(str)
+    categories = df['categories'].str.split( ';',expand=True)
+    row = categories.iloc[0]
 
-  # drop the original categories column from `df`
-  df.drop(['categories'], axis=1, inplace=True)
-
-  # concatenate the original dataframe with the new `categories` dataframe
-  df = pd.concat([df,categories], axis = 1, sort=False)
-
-  # drop duplicates
-  df.drop_duplicates(inplace=True)
+    # use this row to extract a list of new column names for categories.
+    category_colnames = [x[:-2:] for x in row]
+    categories.columns = category_colnames
+    for column in categories:
+        # set each value to be the last character of the string
+        categories[column] = [x[-1::] for x in categories[column]]
+        # convert column from string to numeric
+        categories[column] = categories[column].astype(str)
+    
+    # drop the original categories column from `df`
+    df = df.drop(['categories'], axis=1)
+    # concatenate the original dataframe with the new `categories` dataframe
+    df = pd.concat([df,categories], axis = 1, sort=False)
+    # drop duplicates
+    df= df.drop_duplicates()
+    return df
 
 
 def save_data(df, database_filename):
-  engine = create_engine(database_filename)
-  df.to_sql('messages_with_categories', engine, index=False)  
+    '''
+    INPUT:
+    df - pandas DataFrame to be saved
+    database_filename - string containing the dedicated filename for the database
+    '''
+    
+    engine = create_engine(_data_connection_prefix + database_filename)
+    df.to_sql('messages_with_categories', engine, index=False)
 
 
 def main():
