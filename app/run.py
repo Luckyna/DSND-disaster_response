@@ -1,13 +1,14 @@
 import json
 import plotly
 import pandas as pd
+import sys
 
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 
 from flask import Flask
 from flask import render_template, request, jsonify
-from plotly.graph_objs import Bar
+from plotly.graph_objects import Bar, Heatmap
 from sklearn.externals import joblib
 from sqlalchemy import create_engine
 
@@ -26,11 +27,11 @@ def tokenize(text):
     return clean_tokens
 
 # load data
-engine = create_engine('sqlite:///../data/YourDatabaseName.db')
-df = pd.read_sql_table('YourTableName', engine)
+engine = create_engine('sqlite:///../data/DisasterResponse.db')
+df = pd.read_sql_table('messages_with_categories', engine)
 
 # load model
-model = joblib.load("../models/your_model_name.pkl")
+model = joblib.load("../models/classifier.pkl")
 
 
 # index webpage displays cool visuals and receives user input text for model
@@ -42,6 +43,12 @@ def index():
     # TODO: Below is an example - modify to extract data for your own visuals
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
+
+    categories = df.iloc[:, 4:].apply(pd.to_numeric).sum().sort_values(ascending=False)
+    categories_name = [category.replace('_', ' ') for category in list(categories.index)]
+    
+    correlation = df.iloc[:, 4:].apply(pd.to_numeric).corr()
+    correlation_labels = [label.replace('_', ' ') for label in correlation.index]
     
     # create visuals
     # TODO: Below is an example - modify to create your own visuals
@@ -63,6 +70,49 @@ def index():
                     'title': "Genre"
                 }
             }
+        },
+        
+        {
+            'data': [
+                Bar(
+                    x=categories_name,
+                    y=categories
+                )
+            ],
+            
+            'layout': {
+                'title': 'Categories Frequency',
+                'yaxis': {
+                    'title': "Count"
+                },
+                'xaxis': {
+                    'automargin': True,
+                    'tickangle': -45
+                }
+            }
+            
+        },
+    
+        {
+            'data': [
+                Heatmap(
+                    x=correlation_labels,
+                    y=correlation_labels,
+                    z=correlation
+                )
+            ],
+        
+            'layout': {
+                'title': 'Categories Correlation',
+                'height': 800,
+                'yaxis': {
+                    'automargin': True,
+                },
+                'xaxis': {
+                    'automargin': True,
+                }
+            }
+        
         }
     ]
     
@@ -77,9 +127,10 @@ def index():
 # web page that handles user query and displays model results
 @app.route('/go')
 def go():
+
     # save user input in query
     query = request.args.get('query', '') 
-
+    
     # use model to predict classification for query
     classification_labels = model.predict([query])[0]
     classification_results = dict(zip(df.columns[4:], classification_labels))
