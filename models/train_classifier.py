@@ -1,6 +1,7 @@
 import sys
 import pandas as pd
 from sqlalchemy import create_engine
+import pickle
 
 import nltk
 nltk.download(['punkt', 'wordnet', 'stopwords'])
@@ -14,8 +15,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from sklearn.model_selection import GridSearchCV
-import pickle
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
 
 _data_connection_prefix = 'sqlite:///'
 
@@ -38,6 +39,9 @@ def load_data(database_filepath):
     return X, Y, Y.columns
 
 
+stop_words = stopwords.words("english")
+
+
 def tokenize(text):
     '''
     INPUT:
@@ -47,18 +51,20 @@ def tokenize(text):
     tokens - list with all text tokens in the original message
     '''
     
-    tokens = word_tokenize(text)
-    lemmatizer = WordNetLemmatizer()
-    stop_words = stopwords.words("english")
+    try:
+        tokens = word_tokenize(text)
+        lemmatizer = WordNetLemmatizer()
+        
+        clean_tokens = []
+        for tok in tokens:
+            # lemmatize, normalize case, and remove leading/trailing white space
+            clean_tok = lemmatizer.lemmatize(tok.lower().strip())
+            if clean_tok not in stop_words:
+                clean_tokens.append(clean_tok)
 
-    clean_tokens = []
-    for tok in tokens:
-        # lemmatize, normalize case, and remove leading/trailing white space
-        clean_tok = lemmatizer.lemmatize(tok.lower().strip())
-        if clean_tok not in stop_words:
-            clean_tokens.append(clean_tok)
-
-    return clean_tokens
+        return clean_tokens
+    except Exception as e:
+        print(e)
     
 
 def build_model():
@@ -77,13 +83,12 @@ def build_model():
         'vect__ngram_range': ((1, 1), (1, 2)),
         'vect__max_df': (0.5, 0.75, 1.0),
         'vect__max_features': (None, 5000, 10000),
-        'tfidf__use_idf': (True, False),
         'clf__estimator__n_estimators': [50, 100, 200],
         'clf__estimator__min_samples_split': [2, 3, 4]
     }
 
-    cv = GridSearchCV(pipeline, param_grid=parameters, verbose=2)
-    
+    #cv = GridSearchCV(pipeline, param_grid=parameters, verbose=2)
+    cv = RandomizedSearchCV(pipeline, param_distributions=parameters, n_iter=20, cv=5, iid=False, verbose=2, n_jobs=-1)
     return cv
 
 

@@ -9,8 +9,9 @@ verify_ssl = true
 pandas = "*"
 sqlalchemy = "*"
 nltk = "*"
-sklearn = "*"
-pickle = "*"
+scikit-learn = "*"
+plotly = "*"
+flask = "*"
 
 [requires]
 python_version = "3.7"
